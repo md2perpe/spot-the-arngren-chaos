@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Spot the Arngren Chaos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One+SC&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a price-tag-red header, then the page as a pannable board with numbered pins, and a clue list beside it (stacked on phones). */
+:root {
+  --bg: #fffaf6;
+  --surface: #ffffff;
+  --fg: #22140f;
+  --muted: #7a6157;
+  --line: #ead9cf;
+  --red: #c8102e;
+  --red-ink: #ffffff;
+  --tag: #ffe24a;
+  --tag-ink: #2a1a00;
+  --found: #1f7a3d;
+  --found-bg: #e3f4e8;
+  --board: #efe6df;
+  --f-display: "Bowlby One SC", "Arial Black", Impact, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1210; --surface: #241915; --fg: #f5e9e2; --muted: #b59a8e; --line: #3d2c25;
+    --red: #ff4d5e; --red-ink: #1a0508; --tag: #ffd83a; --tag-ink: #2a1a00;
+    --found: #6fdc93; --found-bg: #173222; --board: #0f0a09; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1a1210; --surface: #241915; --fg: #f5e9e2; --muted: #b59a8e; --line: #3d2c25;
+  --red: #ff4d5e; --red-ink: #1a0508; --tag: #ffd83a; --tag-ink: #2a1a00;
+  --found: #6fdc93; --found-bg: #173222; --board: #0f0a09; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 32px; max-width: 1500px; margin: 0 auto; display: grid; gap: 18px; }
+
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 24px; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(28px, 5vw, 48px); line-height: 1; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+h1 .tag { display: inline-block; background: var(--tag); color: var(--tag-ink); padding: 2px 10px 4px; transform: rotate(-2deg); border: 2px dashed var(--red); }
+.sub { margin: 8px 0 0; color: var(--muted); max-width: 62ch; }
+.sub a { color: var(--red); font-weight: 700; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+.sub a:hover { background: var(--tag); color: var(--tag-ink); }
+.score { font-family: var(--f-display); font-size: 22px; background: var(--red); color: var(--red-ink); padding: 8px 16px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.score small { font-family: var(--f-body); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; display: block; opacity: .85; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.boardcol { display: grid; gap: 10px; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar .lbl { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+button { font: inherit; cursor: pointer; }
+.btn { background: var(--surface); color: var(--fg); border: 1.5px solid var(--line); border-radius: 4px; padding: 5px 11px; font-weight: 700; font-size: 13px; }
+.btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn:hover { border-color: var(--red); }
+.btn:focus-visible, .pin:focus-visible, .clue button:focus-visible { outline: 3px solid var(--tag); outline-offset: 2px; }
+.spacer { flex: 1; }
+
+.board { position: relative; height: min(72vh, 760px); overflow: auto; background: var(--board); border: 2px solid var(--fg); border-radius: 6px; overscroll-behavior: contain; }
+.canvas { position: relative; width: calc(3495px * var(--z, .5)); height: calc(2587px * var(--z, .5)); cursor: crosshair; }
+.canvas img { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; display: block; user-select: none; -webkit-user-drag: none; background: #fff; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+.pin { position: absolute; transform: translate(-50%, -50%); width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid #fff; background: var(--red); color: #fff; font-family: var(--f-display); font-size: 14px; line-height: 1; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.45); padding: 0; z-index: 2; }
+.pin.found { background: #1f7a3d; }
+.pin.active { background: #ffe24a; color: #2a1a00; border-color: #2a1a00; z-index: 3; animation: pop .5s ease; }
+.ring { position: absolute; border: 3px dashed #c8102e; border-radius: 8px; pointer-events: none; z-index: 1; box-shadow: 0 0 0 4000px rgba(20, 8, 4, .18); }
+.miss { position: absolute; transform: translate(-50%, -50%); font-family: var(--f-display); color: #c8102e; font-size: 22px; pointer-events: none; z-index: 4; text-shadow: 0 0 3px #fff, 0 0 3px #fff; animation: fade 0.9s ease forwards; }
+@keyframes pop { 0% { transform: translate(-50%,-50%) scale(.4); } 70% { transform: translate(-50%,-50%) scale(1.25); } 100% { transform: translate(-50%,-50%) scale(1); } }
+@keyframes fade { from { opacity: 1; } to { opacity: 0; transform: translate(-50%, -110%); } }
+@media (prefers-reduced-motion: reduce) { .pin.active, .miss { animation: none; } }
+
+.side { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--surface); border: 1.5px solid var(--line); border-radius: 6px; padding: 14px 16px; }
+.detail h2 { font-family: var(--f-display); font-weight: 400; font-size: 20px; line-height: 1.15; margin: 0 0 6px; text-wrap: balance; }
+.detail p { margin: 0 0 8px; }
+.detail .quote { font-family: var(--f-mono); font-size: 12.5px; background: var(--tag); color: var(--tag-ink); padding: 6px 8px; border-radius: 3px; display: block; overflow-wrap: anywhere; }
+.detail .empty { color: var(--muted); margin: 0; }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--red); margin: 0 0 4px; }
+
+.clues { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 52vh; overflow: auto; }
+@media (max-width: 900px) { .clues { max-height: none; } }
+.clue button { width: 100%; text-align: left; display: grid; grid-template-columns: 26px minmax(0,1fr) auto; gap: 10px; align-items: center; background: transparent; border: 1.5px solid transparent; border-radius: 4px; padding: 6px 8px; color: var(--fg); }
+.clue button:hover { border-color: var(--line); }
+.clue .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-family: var(--f-display); font-size: 12px; background: var(--line); color: var(--fg); }
+.clue.found .n { background: var(--found); color: var(--bg); }
+.clue.found .t { color: var(--muted); }
+.clue .st { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.clue.found .st { color: var(--found); }
+.clue.current button { border-color: var(--red); }
+.foot { font-size: 12.5px; color: var(--muted); margin: 0; }
+.done { background: var(--found-bg); color: var(--found); border-color: var(--found); font-weight: 700; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Spot the <span class="tag">Arngren</span> chaos</h1>
+      <p class="sub">A saved copy of <a href="https://arngren.net/" target="_blank" rel="noopener">arngren.net</a>, a one-man shop in Oslo. Pick a clue, then hunt for it on the page and click where you think it is. Stuck? Reveal it.</p>
+    </div>
+    <div class="score" aria-live="polite"><small>Found</small><span id="score">0 / 0</span></div>
+  </header>
+
+  <div class="main">
+    <div class="boardcol">
+      <div class="toolbar" role="group" aria-label="Zoom">
+        <span class="lbl">Zoom</span>
+        <button class="btn" data-z="0.25" id="z25">25%</button>
+        <button class="btn" data-z="0.5" id="z50">50%</button>
+        <button class="btn" data-z="0.75" id="z75">75%</button>
+        <button class="btn" data-z="1" id="z100">100%</button>
+        <span class="spacer"></span>
+        <button class="btn" id="showall" aria-pressed="false">Show all pins</button>
+        <button class="btn" id="reset">Start over</button>
+      </div>
+      <div class="board" id="board">
+        <div class="canvas" id="canvas">
+          <img src="arngren.jpg" alt="Full-page screenshot of arngren.net: hundreds of product photos and prices packed together" width="3495" height="2587">
+        </div>
+      </div>
+      <p class="hint">The page is 3,495 pixels wide. Scroll or swipe inside the frame to look around.</p>
+    </div>
+
+    <aside class="side">
+      <div class="card detail" id="detail" aria-live="polite">
+        <p class="empty">Choose a clue from the list to start hunting.</p>
+      </div>
+      <div class="card">
+        <p class="eyebrow">Clues</p>
+        <ul class="clues" id="clues"></ul>
+      </div>
+      <p class="foot">Prices are in Norwegian kroner, written the Arngren way: "kr. 998,-". Quotes are copied from the page with their original spacing.</p>
+    </aside>
+  </div>
+</div>
+
+<script>
+// Boxes are in page pixels on the 3495 × 2587 screenshot: [x, y, w, h].
+const ITEMS = [
+  { clue: "A broken visitor counter", title: "The visitor counter that isn't", box: [1975, 0, 105, 34],
+    note: "Top right of the header sits an image that no longer loads. All that's left is its placeholder text, \"Counter\". The rest of the 417 images on the page load fine." },
+  { clue: "A 100% risk-free guarantee", title: "100% satisfaction, risk free, guaranteed", box: [1821, 79, 200, 198],
+    note: "A big gold seal promising a risk-free purchase. Compare it with clue 15, the small yellow disclaimer near the bottom.", quote: "100% SATISFACTION · RISK FREE · GUARANTEED" },
+  { clue: "Build your own helicopter", title: "Helicopter kit, 398,000 kr", box: [1235, 4, 260, 70],
+    note: "Squeezed into the header between the search box and some binoculars: a kit to build your own two-seat helicopter.", quote: "Bygg ditt eget 2-seters Helikopter. kr. 398.000,-" },
+  { clue: "The owner in a flying car", title: "Frithjof in his flying car", box: [700, 34, 140, 32],
+    note: "A link under the logo reads \"Frithjof in his flying car\". Frithjof Arngren, the owner, also sells his own vision of the flying car: the Hoverpod (clue 8).", quote: "Frithjof i sin Fly-Bil" },
+  { clue: "Three search boxes", title: "One search box, three times", box: [815, 2, 190, 52],
+    note: "The search box at the top is repeated halfway down the left column and again in the middle of the page. All three do the same thing." },
+  { clue: "A pool table you can eat off", title: "Pool table and dining table in one", box: [900, 420, 140, 80],
+    note: "A red pool table that turns into a dining table, 5,998 kr. It's tucked in among electric jeeps and ATVs.", quote: "Biljardbord, Spisebord i ett" },
+  { clue: "A plane that tells you the wind", title: "The weathervane plane", box: [1440, 470, 180, 200],
+    note: "A 60 cm weathervane shaped like a plane, with lights and solar cells. The price is spaced out one digit at a time, and a yellow \"Nyhet!\" (\"New!\") sticker is stuck on it.", quote: "kr. 9 9 8,-" },
+  { clue: "A partner wanted for hoverpods", title: "Business partner wanted", box: [1320, 1440, 200, 70],
+    note: "Between the toys sits a business proposal: the shop is looking for a partner to produce and sell the Hoverpod across Europe.", quote: "Søker Partner til del-Produksjon & Salg av Hoverpod i Europa" },
+  { clue: "News from outer space", title: "The space news desk", box: [840, 1365, 180, 70],
+    note: "Three links in a row: \"www.arngren.net/Eltrack\", \"Norwegian Space Centre explains the Universe\" and \"Mercury passes the Sun\".", quote: "Norsk Romsenter Forklare Universet · Merkur passere Solen" },
+  { clue: "A spelling slip on a speedometer", title: "Aselerasjons-måler", box: [1530, 1515, 400, 60],
+    note: "\"Acceleration\" is spelled \"akselerasjon\" in Norwegian. Next door, a robot is \"Atonomous\". Elsewhere you'll find \"Sciens fiction\", \"Hastiget\" and \"Godkjet\".", quote: "BIL Aselerasjons-måler: 0-100km/t" },
+  { clue: "Yoda", title: "Yoda, with lightsaber", box: [1805, 1726, 216, 232],
+    note: "A big Yoda swinging a green lightsaber, just below the Christmas presents. There's no price and no link to explain it." },
+  { clue: "Microsoft and Playboy", title: "The Playboy scoop", box: [1930, 1965, 300, 110],
+    note: "A headline in the bottom-right corner, next to a magazine cover and a \"Sexy Piker\" (\"Sexy girls\") link.", quote: "Microsoft lansere Gratis nedlasting av bladet Playboy" },
+  { clue: "A price with a comma in it", title: "59,998 kroner?", box: [600, 1990, 140, 50],
+    note: "Every other price uses a full stop as the thousands separator (\"59.998,-\"). This one, for a three-wheeled moped car, uses a comma, so it reads like 59 kroner and 998 øre.", quote: "kr. 59,998,-" },
+  { clue: "\"If nobody answers…\"", title: "If nobody answers, text", box: [200, 2015, 140, 40],
+    note: "The contact details appear twice on the page, fax number included. Under one copy is a tip: if nobody answers, send an SMS.", quote: "(Om ingen svarer send SMS til : …)" },
+  { clue: "The fine print", title: "The disclaimer", box: [1655, 2214, 255, 34],
+    note: "A small yellow box near the bottom says some products may be discontinued or have gone up in price, so check for updates. Clue 2 says risk free.", quote: "Flere av produktene kan ha gått ut eller -gått opp i pris !" },
+  { clue: "A rocket plane", title: "Rocket plane, 600 m up", box: [1150, 2225, 120, 145],
+    note: "A 93 cm rocket plane with a camera that climbs 600 metres, from 499 kr. Its neighbours: a keychain breathalyser, a VR 3D model railway \"for PC\" at 99 kr, and car paint sealant." },
+  { clue: "A cabin by the sea", title: "The owner's cabin is for sale", box: [0, 1735, 215, 150],
+    note: "Bottom left: the owner's own cabin on Tjøme, 15 decares (about 3.7 acres) by the sea. The price is behind a link.", quote: "Hytte på Tjøme til Salgs · 15 mål ved sjøen" },
+  { clue: "Christmas 2010", title: "Christmas came in 2010 and stayed", box: [0, 2385, 3495, 190],
+    note: "A snowy banner runs along the whole bottom of the page, with Santas, reindeer, wise men and a moon. The image files are named JUL2010 and JULENE2010 (\"jul\" means Christmas), and some are from 2009.", quote: "JUL2010-reindeer05.gif · JUL-2009-9.santa7.gif" }
+];
+
+const KEY = "arngren-spot-v1";
+const canvas = document.getElementById("canvas");
+const board = document.getElementById("board");
+const cluesEl = document.getElementById("clues");
+const detail = document.getElementById("detail");
+const scoreEl = document.getElementById("score");
+const showAllBtn = document.getElementById("showall");
+let found = new Set();
+let current = null;
+let zoom = 0.5;
+let showAll = false;
+
+try { const s = JSON.parse(localStorage.getItem(KEY) || "{}"); (s.found || []).forEach(i => found.add(i)); if (s.zoom) zoom = s.zoom; } catch (e) {}
+function save() { try { localStorage.setItem(KEY, JSON.stringify({ found: [...found], zoom })); } catch (e) {} }
+
+const centerOf = it => [it.box[0] + it.box[2] / 2, it.box[1] + it.box[3] / 2];
+
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function renderClues() {
+  cluesEl.innerHTML = "";
+  ITEMS.forEach((it, i) => {
+    const li = document.createElement("li");
+    li.className = "clue" + (found.has(i) ? " found" : "") + (current === i ? " current" : "");
+    li.innerHTML = `<button type="button" id="clue-${i}"><span class="n">${i + 1}</span><span class="t">${esc(it.clue)}</span><span class="st">${found.has(i) ? "Found" : ""}</span></button>`;
+    li.querySelector("button").addEventListener("click", () => select(i, found.has(i)));
+    cluesEl.appendChild(li);
+  });
+  scoreEl.textContent = `${found.size} / ${ITEMS.length}`;
+}
+
+function renderPins() {
+  canvas.querySelectorAll(".pin, .ring").forEach(el => el.remove());
+  ITEMS.forEach((it, i) => {
+    const visible = showAll || found.has(i);
+    if (!visible) return;
+    const [cx, cy] = centerOf(it);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "pin" + (found.has(i) ? " found" : "") + (current === i ? " active" : "");
+    b.style.left = (cx / 3495 * 100) + "%";
+    b.style.top = (cy / 2587 * 100) + "%";
+    b.textContent = i + 1;
+    b.setAttribute("aria-label", `${i + 1}: ${it.title}`);
+    b.addEventListener("click", e => { e.stopPropagation(); select(i, true); });
+    canvas.appendChild(b);
+  });
+  if (current !== null && (showAll || found.has(current))) {
+    const [x, y, w, h] = ITEMS[current].box;
+    const r = document.createElement("div");
+    r.className = "ring";
+    Object.assign(r.style, { left: (x / 3495 * 100) + "%", top: (y / 2587 * 100) + "%", width: (w / 3495 * 100) + "%", height: (h / 2587 * 100) + "%" });
+    canvas.appendChild(r);
+  }
+}
+
+function renderDetail() {
+  if (current === null) {
+    detail.innerHTML = found.size === ITEMS.length
+      ? `<p class="eyebrow">All found</p><h2>You spotted every one</h2><p>That's all ${ITEMS.length}. The site has plenty more if you keep scrolling.</p>`
+      : `<p class="empty">Choose a clue from the list to start hunting.</p>`;
+    return;
+  }
+  const it = ITEMS[current];
+  if (!found.has(current) && !showAll) {
+    detail.innerHTML = `<p class="eyebrow">Clue ${current + 1} · Hunting</p><h2>${esc(it.clue)}</h2><p>Find it on the page and click on it.</p><button class="btn" id="reveal" type="button">Reveal it</button>`;
+    detail.querySelector("#reveal").addEventListener("click", () => { found.add(current); save(); update(); scrollTo(current); });
+    return;
+  }
+  detail.innerHTML = `<p class="eyebrow">Clue ${current + 1}${found.has(current) ? " · Found" : ""}</p><h2>${esc(it.title)}</h2><p>${esc(it.note)}</p>${it.quote ? `<span class="quote">${esc(it.quote)}</span>` : ""}`;
+}
+
+function update() { renderClues(); renderPins(); renderDetail(); }
+
+function select(i, jump) { current = i; update(); if (jump) scrollTo(i); }
+
+function scrollTo(i) {
+  const [cx, cy] = centerOf(ITEMS[i]);
+  board.scrollTo({ left: cx * zoom - board.clientWidth / 2, top: cy * zoom - board.clientHeight / 2, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+
+canvas.addEventListener("click", e => {
+  const r = canvas.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * 3495;
+  const y = (e.clientY - r.top) / r.height * 2587;
+  const pad = 25;
+  const hit = ITEMS.findIndex((it, i) => !found.has(i) && x >= it.box[0] - pad && x <= it.box[0] + it.box[2] + pad && y >= it.box[1] - pad && y <= it.box[1] + it.box[3] + pad);
+  // Prefer the clue being hunted if the click lands on it.
+  const target = current !== null && !found.has(current) && (() => { const b = ITEMS[current].box; return x >= b[0] - pad && x <= b[0] + b[2] + pad && y >= b[1] - pad && y <= b[1] + b[3] + pad; })() ? current : hit;
+  if (target >= 0) {
+    found.add(target); current = target; save(); update();
+    document.getElementById("clue-" + target)?.scrollIntoView({ block: "nearest" });
+  } else {
+    const m = document.createElement("div");
+    m.className = "miss"; m.textContent = "✕";
+    m.style.left = (x / 3495 * 100) + "%"; m.style.top = (y / 2587 * 100) + "%";
+    canvas.appendChild(m); setTimeout(() => m.remove(), 900);
+  }
+});
+
+function setZoom(z, keepCenter = true) {
+  const cx = (board.scrollLeft + board.clientWidth / 2) / zoom, cy = (board.scrollTop + board.clientHeight / 2) / zoom;
+  zoom = z;
+  canvas.style.setProperty("--z", z);
+  document.querySelectorAll("[data-z]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.z === z)));
+  if (keepCenter) { board.scrollLeft = cx * z - board.clientWidth / 2; board.scrollTop = cy * z - board.clientHeight / 2; }
+  save();
+}
+document.querySelectorAll("[data-z]").forEach(b => b.addEventListener("click", () => setZoom(+b.dataset.z)));
+
+showAllBtn.addEventListener("click", () => { showAll = !showAll; showAllBtn.setAttribute("aria-pressed", String(showAll)); update(); });
+document.getElementById("reset").addEventListener("click", () => { found.clear(); current = null; showAll = false; showAllBtn.setAttribute("aria-pressed", "false"); save(); update(); board.scrollTo({ left: 0, top: 0 }); });
+
+setZoom(zoom, false);
+update();
+</script>
+
+</body>
+</html>
